@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FoodBox · Диагностика платёжных модулей</title>
+<style>
+  :root{
+    --bg:#0b0d10;
+    --panel:#14181d;
+    --panel-2:#1a1f26;
+    --line:#262c34;
+    --txt:#e6edf3;
+    --muted:#8b98a5;
+    --orange:#ff7a18;
+    --red:#ff3b30;
+    --green:#35d07f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(900px 520px at 12% -12%, rgba(255,122,24,.12), transparent 62%),
+      radial-gradient(760px 420px at 102% -4%, rgba(53,208,127,.07), transparent 60%),
+      radial-gradient(700px 500px at 50% 120%, rgba(255,59,48,.06), transparent 60%),
+      #0b0d10;
+    color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    padding:18px 16px 48px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+
+  /* ---------- HUD ---------- */
+  .hud{
+    display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+    background:linear-gradient(180deg,#171c22,#12161b);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:14px 18px;
+    box-shadow:0 10px 30px rgba(0,0,0,.45);
+  }
+  .brand{font-weight:800;font-size:14px;letter-spacing:.6px;color:var(--orange);white-space:nowrap}
+  .brand span{display:block;font-weight:600;font-size:10.5px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:3px}
+  .hp-wrap{flex:1 1 260px;min-width:210px}
+  .hp-top{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px}
+  .hp-top b{font-size:15px;letter-spacing:0;color:var(--txt)}
+  .hp-bar{height:14px;border-radius:9px;background:#080a0d;border:1px solid var(--line);overflow:hidden}
+  .hp-fill{
+    height:100%;width:100%;border-radius:9px;
+    transition:width .55s cubic-bezier(.2,.8,.2,1), background .45s ease, box-shadow .45s ease;
+    box-shadow:0 0 14px rgba(53,208,127,.55);
+  }
+
+  /* ---------- INVENTORY ---------- */
+  .inv-bar{
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:11px 16px;margin:12px 0 18px;font-size:12px;letter-spacing:.8px;
+    text-transform:uppercase;color:var(--muted);
+  }
+  .chip{
+    background:#1b2530;border:1px solid #2b3946;color:#bfe0ff;
+    padding:5px 12px;border-radius:999px;font-size:12.5px;letter-spacing:0;
+    text-transform:none;font-weight:600;
+    animation:pop .3s ease;
+  }
+  .chip.empty{opacity:.45;font-weight:400;font-style:italic}
+  @keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+
+  /* ---------- CARD ---------- */
+  .card{
+    background:linear-gradient(180deg,#151a20,#11151a);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:26px 26px 22px;
+    box-shadow:0 18px 50px rgba(0,0,0,.5);
+    animation:fadeUp .38s ease both;
+  }
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+  .steps{display:flex;gap:8px;margin-bottom:20px}
+  .step{
+    flex:1;height:5px;border-radius:4px;background:#1e242c;
+    transition:background .35s ease, box-shadow .35s ease;
+  }
+  .step.done{background:#2c6b4d}
+  .step.active{background:var(--orange);box-shadow:0 0 12px rgba(255,122,24,.7)}
+
+  .tag{
+    display:inline-block;font-size:10.5px;letter-spacing:2.4px;text-transform:uppercase;
+    color:var(--orange);border:1px solid rgba(255,122,24,.35);
+    background:rgba(255,122,24,.08);
+    padding:5px 11px;border-radius:6px;margin-bottom:14px;font-weight:700;
+  }
+  .tag.green{color:var(--green);border-color:rgba(53,208,127,.35);background:rgba(53,208,127,.08)}
+  .tag.red{color:var(--red);border-color:rgba(255,59,48,.35);background:rgba(255,59,48,.09)}
+
+  h1{font-size:23px;line-height:1.25;font-weight:800;letter-spacing:-.2px;margin-bottom:14px}
+  .story{font-size:15px;line-height:1.72;color:#c3cdd8;margin-bottom:22px;max-width:74ch}
+
+  /* ---------- CHOICES ---------- */
+  .choices{display:flex;flex-direction:column;gap:12px}
+  .choice{
+    display:flex;gap:14px;align-items:flex-start;width:100%;text-align:left;
+    background:linear-gradient(180deg,#1a2129,#141920);
+    border:1px solid var(--line);
+    border-left:3px solid #38424e;
+    color:var(--txt);
+    padding:15px 18px;border-radius:13px;cursor:pointer;
+    font-family:inherit;font-size:15px;line-height:1.5;
+    transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease;
+  }
+  .choice:hover,.choice:focus-visible{
+    border-color:var(--orange);
+    border-left-color:var(--orange);
+    background:linear-gradient(180deg,#20272f,#171d24);
+    box-shadow:0 0 0 1px rgba(255,122,24,.28), 0 0 26px rgba(255,122,24,.20);
+    transform:translateX(5px);
+    outline:none;
+  }
+  .choice .num{
+    flex:0 0 auto;min-width:38px;height:26px;display:flex;align-items:center;justify-content:center;
+    background:#0d1116;border:1px solid #2f3a46;border-radius:7px;
+    font-size:12px;font-weight:800;color:var(--orange);letter-spacing:.5px;margin-top:1px;
+  }
+  .choice .body{display:flex;flex-direction:column;gap:5px}
+  .choice .label{font-weight:600}
+  .choice .sub{font-size:12.5px;color:var(--muted);line-height:1.45}
+
+  /* ---------- FEEDBACK ---------- */
+  .fb-box{
+    border:1px solid var(--line);border-radius:14px;padding:18px 20px;
+    background:#12171d;margin-bottom:20px;
+  }
+  .fb-box.good{border-color:rgba(53,208,127,.4);background:rgba(53,208,127,.06)}
+  .fb-box.bad{border-color:rgba(255,122,24,.4);background:rgba(255,122,24,.06)}
+  .fb-title{font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:800;margin-bottom:10px;color:var(--muted)}
+  .fb-box.good .fb-title{color:var(--green)}
+  .fb-box.bad .fb-title{color:var(--orange)}
+  .fb-text{font-size:14.5px;line-height:1.7;color:#c8d3de}
+  .deltas{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .delta{
+    font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:8px;
+    background:#0c1015;border:1px solid var(--line);
+  }
+  .delta.hp-minus{color:var(--red);border-color:rgba(255,59,48,.4);background:rgba(255,59,48,.08)}
+  .delta.hp-zero{color:var(--green);border-color:rgba(53,208,127,.35);background:rgba(53,208,127,.07)}
+  .delta.item{color:#7fd3ff;border-color:rgba(127,211,255,.35);background:rgba(127,211,255,.07)}
+
+  /* ---------- BUTTONS ---------- */
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;
+    background:linear-gradient(180deg,#ff8a2e,#e85f00);
+    color:#150c03;border:none;border-radius:12px;
+    padding:14px 30px;font-family:inherit;font-size:15px;font-weight:800;letter-spacing:.3px;
+    cursor:pointer;transition:transform .16s ease, box-shadow .16s ease, filter .16s ease;
+    box-shadow:0 8px 24px rgba(255,122,24,.28);
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(255,122,24,.45);filter:brightness(1.06)}
+  .btn:active{transform:translateY(0)}
+  .btn.ghost{
+    background:transparent;color:var(--txt);border:1px solid var(--line);
+    box-shadow:none;font-weight:700;
+  }
+  .btn.ghost:hover{border-color:var(--orange);color:var(--orange);box-shadow:0 0 22px rgba(255,122,24,.2)}
+
+  /* ---------- DEATH ---------- */
+  .death{border-color:rgba(255,59,48,.35);box-shadow:0 18px 60px rgba(255,59,48,.14)}
+  .death h1{color:#ff6b62}
+  .death-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin:22px 0 26px}
+  .dbox{
+    background:#12161b;border:1px solid var(--line);border-radius:13px;padding:15px 17px;
+  }
+  .dbox h3{
+    font-size:10.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);
+    margin-bottom:9px;font-weight:800;
+  }
+  .dbox p{font-size:13.6px;line-height:1.65;color:#c5d0db}
+  .dbox.good{border-color:rgba(53,208,127,.4);background:rgba(53,208,127,.055)}
+  .dbox.good h3{color:var(--green)}
+  .dbox.bad{border-color:rgba(255,59,48,.35);background:rgba(255,59,48,.05)}
+  .dbox.bad h3{color:#ff6b62}
+
+  /* ---------- VICTORY ---------- */
+  .win{border-color:rgba(53,208,127,.4);box-shadow:0 18px 60px rgba(53,208,127,.13)}
+  .win h1{color:var(--green)}
+  .rules{list-style:none;margin:22px 0 8px;display:flex;flex-direction:column;gap:11px}
+  .rules li{
+    display:flex;gap:12px;align-items:flex-start;
+    background:#12171d;border:1px solid var(--line);border-radius:12px;
+    padding:13px 16px;font-size:14px;line-height:1.6;color:#c8d3de;
+  }
+  .rules li .ic{
+    flex:0 0 auto;width:22px;height:22px;border-radius:50%;
+    background:rgba(53,208,127,.14);border:1px solid rgba(53,208,127,.45);
+    color:var(--green);font-size:12px;font-weight:900;
+    display:flex;align-items:center;justify-content:center;margin-top:1px;
+  }
+  .warn-list{list-style:none;margin:16px 0 6px;display:flex;flex-direction:column;gap:8px}
+  .warn-list li{
+    font-size:13.5px;line-height:1.55;color:#ffb787;
+    background:rgba(255,122,24,.07);border:1px solid rgba(255,122,24,.3);
+    border-radius:10px;padding:10px 14px;
+  }
+  .scorebar{
+    display:flex;gap:12px;flex-wrap:wrap;margin:18px 0 26px;
+  }
+  .stat{
+    background:#12171d;border:1px solid var(--line);border-radius:12px;
+    padding:12px 18px;min-width:130px;
+  }
+  .stat b{display:block;font-size:22px;font-weight:800;letter-spacing:-.5px}
+  .stat span{font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+  /* ---------- LOG ---------- */
+  .logbox{
+    margin-top:16px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:14px 18px;
+  }
+  .logbox h4{
+    font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);
+    margin-bottom:10px;font-weight:800;
+  }
+  .logbox ul{list-style:none;display:flex;flex-direction:column;gap:7px}
+  .logbox li{
+    font-size:12.7px;line-height:1.5;color:#9fb0c0;
+    display:flex;gap:9px;align-items:flex-start;
+  }
+  .logbox li i{
+    flex:0 0 auto;font-style:normal;font-weight:900;font-size:11px;margin-top:1px;
+  }
+  .logbox li i.ok{color:var(--green)}
+  .logbox li i.no{color:var(--orange)}
+
+  @media (max-width:720px){
+    .death-grid{grid-template-columns:1fr}
+    h1{font-size:20px}
+    .card{padding:20px 18px}
+    .hud{gap:12px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hud" id="hud"></header>
+  <div class="inv-bar" id="inv"></div>
+  <main id="screen"></main>
+  <div id="logbox"></div>
+</div>
+
+<script>
+/* =========================================================
+   СОСТОЯНИЕ
+   ========================================================= */
+const state = {
+  hp: 100,
+  inv: [],
+  step: 1,
+  view: 'situation',   // situation | feedback | death | victory | depleted
+  pending: null,
+  death: null,
+  mistakes: [],
+  log: []
+};
+
+/* =========================================================
+   СЦЕНАРИЙ
+   ========================================================= */
+const S = {
+  1: {
+    tag: 'Ситуация 1 · Первичный вызов',
+    title: 'Банкноты не принимаются',
+    text: 'Торговый автомат FoodBox в бизнес-центре: монеты принимаются, банкноты — нет. На экране мигают коды ошибок, в журнале — отказы купюроприёмника. Владелец точки стоит рядом и торопит: до конца смены полчаса.',
+    choices: [
+      {
+        id: '1.1',
+        label: 'Сразу заменить купюроприёмник на новый',
+        sub: '«Железо всё равно виновато» — быстро, но дорого и без диагностики',
+        hp: -30,
+        next: 2,
+        mistake: 'Неверный диагноз: замена купюроприёмника без проверки настроек.',
+        feedback: 'Купюроприёмник заменён, но автомат по-прежнему не принимает банкноты — причина была не в нём. Потрачено время, деньги на новый модуль и доверие клиента. Заявка закрыта не будет.'
+      },
+      {
+        id: '1.2',
+        label: 'Зафиксировать исходные настройки и проверить разрешения номиналов в меню 1.2.8.4',
+        sub: 'Сначала — данные и диагностика, потом — вмешательство',
+        hp: 0,
+        next: 2,
+        good: true,
+        feedback: 'Исходные настройки зафиксированы (фото + чек-лист) — теперь есть к чему вернуться. В меню 1.2.8.4 разрешения номиналов проверены и корректны. Но банкнота всё равно возвращается: причина глубже.'
+      },
+      {
+        id: '1.3',
+        label: 'Протереть оптику купюроприёмника без отключения питания',
+        sub: '«Пять секунд, ничего не случится»',
+        fatal: {
+          code: 'Фатальный тупик 1',
+          title: 'Короткое замыкание',
+          phys: 'Протирка оптики влажной тканью под напряжением: жидкость попала на плату купюроприёмника и разъём контроллера. Короткое замыкание, выгорание порта, автомат полностью обесточен аварийно.',
+          module: 'Купюроприёмник (BNA) и контроллер автомата — порт интерфейса выгорел.',
+          clause: 'Правила электробезопасности и регламент ТО: любые работы внутри автомата выполняются только при полностью снятом питании.',
+          right: 'Обесточить автомат, снять купюроприёмник, очистить оптику сухой безворсовой салфеткой, собрать и только потом подать питание и проверить приём.'
+        }
+      }
+    ]
+  },
+
+  2: {
+    tag: 'Ситуация 2 · Механика и запреты',
+    title: 'Разрешения проверены, банкноты не идут',
+    text: 'В меню 1.2.8.4 всё корректно: нужные номиналы разрешены. Но банкнота заходит в купюроприёмник и возвращается обратно. Владелец точки нервничает: «Вы же сказали, что уже разобрались».',
+    choices: [
+      {
+        id: '2.1',
+        label: 'Проверить состояние кассеты, вход и тракт на наличие замятия и посторонних предметов (с отключением питания)',
+        sub: 'Сначала обесточить — потом лезть внутрь',
+        hp: 0,
+        item: 'Чистая ткань',
+        next: 3,
+        good: true,
+        feedback: 'Питание снято. При осмотре тракта найден обрывок банкноты и плотный слой пыли на датчиках. Замятие устранено, оптика аккуратно протёрта безворсовой тканью. В экипировку добавлена «Чистая ткань».'
+      },
+      {
+        id: '2.2',
+        label: 'Обновить ПО купюроприёмника «до последней версии» без подтверждения модели',
+        sub: 'Прошивка «наугад» — всегда лотерея',
+        hp: -50,
+        next: 3,
+        mistake: 'Обновление ПО без подтверждения модели купюроприёмника — риск несовместимости.',
+        feedback: 'Прошивка встала, но не соответствует модели купюроприёмника: связь нестабильна, часть команд игнорируется. Теперь придётся откатывать версию. Ресурс и время потеряны впустую.'
+      },
+      {
+        id: '2.3',
+        label: 'Оставить как есть, сказав «само пройдёт»',
+        sub: 'Клиент подождёт, заявка закроется сама',
+        fatal: {
+          code: 'Фатальный тупик 2',
+          title: 'Повторный вызов и увольнение',
+          phys: 'Неисправность не устранена. Через час автомат снова встал, выручка остановлена. Клиент написал жалобу в сервисную службу с требованием разбора.',
+          module: 'Купюроприёмник (BNA): тракт подачи банкнот и датчики положения.',
+          clause: 'Регламент сервисного обслуживания: заявка закрывается только после устранения причины и контрольной проверки. Закрытие без диагностики запрещено.',
+          right: 'Снять питание, осмотреть кассету и тракт, устранить замятие, очистить датчики, собрать и выполнить тестовый приём банкноты.'
+        }
+      }
+    ]
+  },
+
+  3: {
+    tag: 'Ситуация 3 · Ошибка связи',
+    title: 'Ошибка ENK — нет связи с купюроприёмником',
+    text: 'Замятие устранено, питание подано. Но контроллер выдаёт ошибку ENK: связи с купюроприёмником нет. Автомат не видит платёжный модуль вообще — ни приёма, ни теста.',
+    choices: [
+      {
+        id: '3.1',
+        label: 'Проверить настройки интерфейса (MDB / Executive), состояние жгута и питание',
+        sub: 'Протокол, кабель, напряжение — три классические причины ENK',
+        hp: 0,
+        item: 'Мультиметр',
+        next: 4,
+        good: true,
+        feedback: 'Найдено: в настройках выставлен протокол Executive вместо MDB, разъём жгута недожат до щелчка. Контакты восстановлены, протокол выставлен верно, питание 24 В подтверждено замером. В экипировку добавлен «Мультиметр».'
+      },
+      {
+        id: '3.2',
+        label: 'Заменить контроллер — «наверное, он сгорел»',
+        sub: 'Дорогая деталь вместо проверки кабеля',
+        hp: -40,
+        next: 4,
+        mistake: 'Необоснованная замена контроллера без проверки интерфейса и жгута.',
+        feedback: 'Контроллер заменён, но ошибка ENK осталась: причина была в настройках интерфейса и недожатом жгуте. Необоснованная замена на дорогую деталь, ресурс потрачен впустую.'
+      },
+      {
+        id: '3.3',
+        label: 'Сбросить ошибки в меню 2.1.2 и закрыть заявку',
+        sub: '«Ошибка ушла — значит, починили»',
+        fatal: {
+          code: 'Фатальный тупик 3',
+          title: 'Потеря учётных данных',
+          phys: 'Сброс ошибки без устранения причины. ENK возвращается через минуту, а журнал событий и данные инкассации обнулены — восстановить историю отказов невозможно.',
+          module: 'Контроллер автомата, журнал событий, система учёта.',
+          clause: 'Руководство оператора, меню 2.1.2 «Сброс ошибок»: сброс выполняется только после устранения причины; журнал событий обязателен для отчётности.',
+          right: 'Проверить настройки интерфейса MDB/Executive, целостность жгута и наличие питания, и только затем сбрасывать ошибку.'
+        }
+      }
+    ]
+  },
+
+  4: {
+    tag: 'Ситуация 4 · Сдача',
+    title: 'Автомат не выдаёт сдачу',
+    text: 'Связь есть, банкноты принимаются, покупка проходит. Но сдача не выдаётся: монеты остаются в тубах, на экране — сообщение о невозможности выдать сдачу. Покупатели жалуются.',
+    choices: [
+      {
+        id: '4.1',
+        label: 'Проверить настройки 1.2.7.5 «Отключение сдачи», 1.2.7.6 «Сдача после продажи» и наличие монет нужного номинала в тубах',
+        sub: 'Настройки + фактическое наличие монет',
+        hp: 0,
+        item: 'Руководство оператора',
+        next: 5,
+        good: true,
+        feedback: 'В меню 1.2.7.5 была активирована функция «Отключение сдачи», а в тубах не хватало монет номинала 5 ₽. Настройки приведены в соответствие с руководством, тубы пополнены строго по учёту. В экипировку добавлено «Руководство оператора».'
+      },
+      {
+        id: '4.2',
+        label: 'Вручную досыпать монеты в снятую кассету без учёта',
+        sub: '«Сдача пошла — и хорошо»',
+        hp: -20,
+        next: 5,
+        mistake: 'Ручное пополнение кассеты без учёта — нарушение учётной дисциплины.',
+        feedback: 'Сдача пошла, но учёт нарушен: данные инкассации не совпадают с фактическим наличием монет. При следующей инкассации — недостача и объяснительная.'
+      },
+      {
+        id: '4.3',
+        label: 'Разобрать монетоприёмник без отключения питания',
+        sub: '«Успею, там всего пара винтов»',
+        fatal: {
+          code: 'Фатальный тупик 4',
+          title: 'Поражение электрическим током',
+          phys: 'Вскрытие монетоприёмника под напряжением: касание токоведущих частей и блока питания. Электротравма, автомат аварийно обесточен, вызвана скорая.',
+          module: 'Монетоприёмник (coin changer) и блок питания автомата.',
+          clause: 'Правила электробезопасности: работы с платёжными модулями — только после полного отключения питания и проверки отсутствия напряжения.',
+          right: 'Обесточить автомат, снять монетоприёмник, проверить тубы и датчики выдачи, собрать, подать питание и проверить сдачу контрольной покупкой.'
+        }
+      }
+    ]
+  },
+
+  5: {
+    tag: 'Ситуация 5 · Контрольная покупка',
+    title: 'Финальная проверка',
+    text: 'Настройки проверены, механические препятствия устранены, связь стабильна, тубы заполнены по учёту. Осталось последнее — подтвердить, что автомат действительно исправен, и закрыть заявку.',
+    choices: [
+      {
+        id: '5.1',
+        label: 'Выполнить полный тест: приём разрешённой банкноты, отклонение запрещённой, покупка со сдачей и без, возврат до покупки, проверка после закрытия панели',
+        sub: 'Полный цикл — единственное доказательство исправности',
+        hp: 0,
+        finish: true,
+        good: true,
+        feedback: 'Полный цикл тестирования пройден: разрешённая банкнота принята, запрещённая отклонена, покупка со сдачей и без сдачи выполнена, возврат до покупки отработал, после закрытия панели автомат сохранил работоспособность. Заявка может быть закрыта.'
+      },
+      {
+        id: '5.2',
+        label: 'Закрыть заявку после одной успешной покупки',
+        sub: '«Работает же — чего ещё надо»',
+        hp: -30,
+        finish: true,
+        mistake: 'Неполный цикл тестирования: заявка закрыта после одной успешной покупки.',
+        feedback: 'Одна покупка прошла — заявка закрыта. Но сценарии со сдачей, возвратом и запрещённым номиналом не проверены. Риск повторного вызова и повторной жалобы остаётся высоким.'
+      },
+      {
+        id: '5.3',
+        label: 'Оставить тестовые купюры и монеты в автомате',
+        sub: '«Потом заберу, сейчас некогда»',
+        hp: -10,
+        finish: true,
+        mistake: 'Тестовые купюры и монеты оставлены в автомате — нарушение учётной дисциплины.',
+        feedback: 'Автомат исправен, но тестовые купюры и монеты остались внутри. Данные учёта не сойдутся при инкассации, а тестовый номинал может попасть в выдачу сдачи покупателю.'
+      }
+    ]
+  }
+};
+
+/* =========================================================
+   УТИЛИТЫ
+   ========================================================= */
+const hudEl  = document.getElementById('hud');
+const invEl  = document.getElementById('inv');
+const screen = document.getElementById('screen');
+const logEl  = document.getElementById('logbox');
+
+function hpColor(hp){
+  if (hp > 60) return { c: 'var(--green)',  g: 'rgba(53,208,127,.55)' };
+  if (hp > 30) return { c: 'var(--orange)', g: 'rgba(255,122,24,.55)' };
+  return { c: 'var(--red)', g: 'rgba(255,59,48,.6)' };
+}
+
+function renderHUD(){
+  const col = hpColor(state.hp);
+  hudEl.innerHTML = `
+    <div class="brand">FOODBOX<span>payment service quest</span></div>
+    <div class="hp-wrap">
+      <div class="hp-top"><span>Ресурс техника</span><b>${state.hp}%</b></div>
+      <div class="hp-bar">
+        <div class="hp-fill" style="width:${state.hp}%;background:${col.c};box-shadow:0 0 14px ${col.g}"></div>
+      </div>
+    </div>
+  `;
+
+  const items = state.inv.length
+    ? state.inv.map(i => `<span class="chip">${i}</span>`).join('')
+    : `<span class="chip empty">пусто</span>`;
+  invEl.innerHTML = `<span>Экипировка:</span>${items}`;
+}
+
+function renderLog(){
+  if (!state.log.length){ logEl.innerHTML = ''; return; }
+  logEl.innerHTML = `
+    <div class="logbox">
+      <h4>Журнал действий</h4>
+      <ul>
+        ${state.log.map(l => `<li><i class="${l.ok ? 'ok' : 'no'}">${l.ok ? '✓' : '!'}</i><span>${l.text}</span></li>`).join('')}
+      </ul>
+    </div>`;
+}
+
+function stepsHTML(){
+  let out = '<div class="steps">';
+  for (let i = 1; i <= 5; i++){
+    const cls = i === state.step ? 'active' : (i < state.step ? 'done' : '');
+    out += `<div class="step ${cls}"></div>`;
+  }
+  return out + '</div>';
+}
+
+/* =========================================================
+   ЭКРАНЫ
+   ========================================================= */
+function renderSituation(){
+  const s = S[state.step];
+  screen.innerHTML = `
+    <div class="card">
+      ${stepsHTML()}
+      <div class="tag">${s.tag}</div>
+      <h1>${s.title}</h1>
+      <p class="story">${s.text}</p>
+      <div class="choices">
+        ${s.choices.map((c, i) => `
+          <button class="choice" onclick="pick(${i})">
+            <span class="num">${c.id}</span>
+            <span class="body">
+              <span class="label">${c.label}</span>
+              ${c.sub ? `<span class="sub">${c.sub}</span>` : ''}
+            </span>
+          </button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function renderFeedback(){
+  const c = state.pending;
+  const bad = (c.hp || 0) < 0;
+  const cls = bad ? 'bad' : 'good';
+  const title = bad ? 'Есть потери' : (c.good ? 'Верное решение' : 'Принято');
+  let deltas = '';
+  if (c.hp) deltas += `<span class="delta hp-minus">${c.hp}% ресурса</span>`;
+  else deltas += `<span class="delta hp-zero">Ресурс сохранён</span>`;
+  if (c.item) deltas += `<span class="delta item">+ ${c.item}</span>`;
+
+  screen.innerHTML = `
+    <div class="card">
+      ${stepsHTML()}
+      <div class="tag ${bad ? '' : 'green'}">${c.id} · ${bad ? 'Потеря ресурса' : 'Шаг выполнен'}</div>
+      <h1>${c.id === '1.2' ? 'Грамотный старт' : 'Результат действия'}</h1>
+      <div class="fb-box ${cls}">
+        <div class="fb-title">${title}</div>
+        <div class="fb-text">${c.feedback}</div>
+        <div class="deltas">${deltas}</div>
+      </div>
+      <button class="btn" onclick="proceed()">Далее →</button>
+    </div>`;
+}
+
+function renderDeath(){
+  const d = state.death;
+  screen.innerHTML = `
+    <div class="card death">
+      <div class="tag red">${d.code} · Game Over</div>
+      <h1>${d.title}</h1>
+      <div class="death-grid">
+        <div class="dbox bad">
+          <h3>Что произошло</h3>
+          <p>${d.phys}</p>
+        </div>
+        <div class="dbox">
+          <h3>Затронутый модуль</h3>
+          <p>${d.module}</p>
+        </div>
+        <div class="dbox bad">
+          <h3>Нарушенный пункт</h3>
+          <p>${d.clause}</p>
+        </div>
+        <div class="dbox good">
+          <h3>Как надо было</h3>
+          <p>${d.right}</p>
+        </div>
+      </div>
+      <button class="btn" onclick="restart()">Начать заново</button>
+    </div>`;
+}
+
+function renderDepleted(){
+  screen.innerHTML = `
+    <div class="card death">
+      <div class="tag red">Ресурс исчерпан · Game Over</div>
+      <h1>Заявка провалена</h1>
+      <p class="story">Вы потратили весь запас времени, деталей и доверия клиента на необоснованные замены и обновления. Автомат так и не заработал, заявка передана другому технику.</p>
+      <div class="death-grid">
+        <div class="dbox bad">
+          <h3>Что произошло</h3>
+          <p>Цепочка решений без диагностики: замена исправных узлов и прошивка «наугад» вместо проверки настроек, тракта, интерфейса и сдачи.</p>
+        </div>
+        <div class="dbox good">
+          <h3>Как надо было</h3>
+          <p>Сначала фиксировать исходные настройки, затем проверять разрешения номиналов, тракт при снятом питании, интерфейс MDB/Executive и настройки сдачи — и только потом менять детали.</p>
+        </div>
+      </div>
+      <button class="btn" onclick="restart()">Начать заново</button>
+    </div>`;
+}
+
+function renderVictory(){
+  const perfect = state.hp === 100 && state.mistakes.length === 0;
+  const rules = [
+    'Фиксация исходных настроек перед любым вмешательством — точка возврата при ошибке.',
+    'Проверка разрешений номиналов в меню 1.2.8.4 — прежде чем разбирать купюроприёмник.',
+    'Осмотр кассеты и тракта только после полного отключения питания.',
+    'При ошибке ENK — проверка интерфейса (MDB/Executive), жгута и питания, а не замена контроллера.',
+    'Сдача: настройки 1.2.7.5 и 1.2.7.6 плюс фактическое наличие монет нужного номинала в тубах.',
+    'Заявка закрывается только после полного цикла контрольной покупки.'
+  ];
+
+  screen.innerHTML = `
+    <div class="card win">
+      <div class="tag green">${perfect ? 'Триумф · 100% выживание' : 'Заявка закрыта'}</div>
+      <h1>${perfect ? 'Автомат исправен. Работа выполнена идеально.' : 'Автомат работает. Заявка закрыта.'}</h1>
+      <p class="story">${perfect
+        ? 'Все пять ситуаций пройдены без единой потери ресурса: диагноз точный, вмешательства обоснованы, контрольная покупка выполнена в полном объёме.'
+        : 'Основная неисправность устранена, но в работе остались замечания — они повышают риск повторного вызова.'}</p>
+
+      <div class="scorebar">
+        <div class="stat"><b style="color:${hpColor(state.hp).c}">${state.hp}%</b><span>Ресурс</span></div>
+        <div class="stat"><b style="color:${state.mistakes.length ? 'var(--orange)' : 'var(--green)'}">${state.mistakes.length}</b><span>Замечаний</span></div>
+        <div class="stat"><b style="color:#7fd3ff">${state.inv.length}</b><span>Инструментов</span></div>
+      </div>
+
+      ${state.mistakes.length ? `
+        <h3 style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--orange);margin-bottom:4px;font-weight:800">Замечания по работе</h3>
+        <ul class="warn-list">${state.mistakes.map(m => `<li>${m}</li>`).join('')}</ul>
+      ` : ''}
+
+      <h3 style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin:22px 0 4px;font-weight:800">Усвоенные правила</h3>
+      <ul class="rules">
+        ${rules.map(r => `<li><span class="ic">✓</span><span>${r}</span></li>`).join('')}
+      </ul>
+
+      <div style="margin-top:26px">
+        <button class="btn" onclick="restart()">Пройти ещё раз</button>
+      </div>
+    </div>`;
+}
+
+/* =========================================================
+   РЕНДЕР
+   ========================================================= */
+function render(){
+  renderHUD();
+  renderLog();
+  switch (state.view){
+    case 'situation': renderSituation(); break;
+    case 'feedback':  renderFeedback();  break;
+    case 'death':     renderDeath();     break;
+    case 'depleted':  renderDepleted();  break;
+    case 'victory':   renderVictory();   break;
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* =========================================================
+   ЛОГИКА
+   ========================================================= */
+function pick(i){
+  const c = S[state.step].choices[i];
+
+  if (c.fatal){
+    state.log.push({ ok: false, text: `${c.id} — ${c.label}` });
+    state.death = c.fatal;
+    state.view = 'death';
+    render();
+    return;
+  }
+
+  state.hp = Math.max(0, state.hp + (c.hp || 0));
+  if (c.item && !state.inv.includes(c.item)) state.inv.push(c.item);
+  if (c.mistake && !state.mistakes.includes(c.mistake)) state.mistakes.push(c.mistake);
+
+  state.log.push({
+    ok: !(c.hp < 0),
+    text: `${c.id} — ${c.label}${c.hp ? ` (${c.hp}% ресурса)` : ''}`
+  });
+
+  state.pending = c;
+  state.view = 'feedback';
+  render();
+}
+
+function proceed(){
+  if (state.hp <= 0){
+    state.view = 'depleted';
+    render();
+    return;
+  }
+  const c = state.pending;
+  if (c.finish){
+    state.view = 'victory';
+  } else {
+    state.step = c.next;
+    state.view = 'situation';
+  }
+  render();
+}
+
+function restart(){
+  state.hp = 100;
+  state.inv = [];
+  state.step = 1;
+  state.view = 'situation';
+  state.pending = null;
+  state.death = null;
+  state.mistakes = [];
+  state.log = [];
+  render();
+}
+
+/* СТАРТ */
+render();
+</script>
+</body>
+</html>
